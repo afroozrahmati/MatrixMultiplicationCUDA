@@ -4,7 +4,7 @@
  * Author: Afrooz Rahmati
  * 02-23-2021
  *
- * special thanks to Tony Varela, I worked with him on previous lab work for 
+ * special thanks to Tony Varela, I worked with him on previous lab for 
  * vector-matrix multiplication, so I used some of our previous implementations 
  * our previous work is here (private): https://github.com/valenotary/CSS-535-Lab-03-GEMV
  */
@@ -18,7 +18,6 @@
 #include <iostream> // for output 
 using namespace std;
 using namespace std::chrono;
-
 
 
 /*
@@ -89,15 +88,22 @@ void print_matrix(float *a, const int N, const int M, char *d) {
 int main(int argc, char **argv) {
 	// TODO: create command line arguments to configure grid/block dimensions
 	// This program should only take in the M and N dimensions; within the program, we figure out the execution configurations ourselves
-	if (argc != 3) {
+	
+    cout << argc<<endl;
+    cout <<argv[0]<<endl;
+    cout <<argv[1]<<endl;
+    cout <<argv[2]<<endl;
+    cout <<argv[3]<<endl;
+
+    if (argc != 4) {
 		std::cout << "Input: Matrix_size GridDim.x BlockDim.x. Exiting...\n";
 		return -1;
 	}
 
-	const size_t N{std::stoul(std::string{argv[0]})};
+	const size_t N{std::stoul(std::string{argv[1]})};
 	// let's create the grid / block configuration, but just really simply.
-	dim3 grid{std::stoul(std::string{argv[1]})}; // (1, 1, 1)
-	dim3 block{std::stoul(std::string{argv[2]})};
+	dim3 grid{std::stoul(std::string{argv[2]})}; // (1, 1, 1)
+	dim3 block{std::stoul(std::string{argv[3]})};
 
 	// cublas declarations
 	cublasHandle_t cublas_handle;
@@ -118,9 +124,9 @@ int main(int argc, char **argv) {
 	// allocate device memory
 	float *d_a, *d_b, *d_c_out_naive, *d_c_out_cublas;
 	cudaMalloc(reinterpret_cast<void**>(&d_a), sizeof(float) * N * N);
-	cudaMalloc(reinterpret_cast<void**>(&d_b), sizeof(float)  * N * N));
-	cudaMalloc(reinterpret_cast<void**>(&d_c_out_naive), sizeof(float)  * N * N));
-	cudaMalloc(reinterpret_cast<void**>(&d_c_out_cublas), sizeof(float)  * N * N));
+	cudaMalloc(reinterpret_cast<void**>(&d_b), sizeof(float)  * N * N);
+	cudaMalloc(reinterpret_cast<void**>(&d_c_out_naive), sizeof(float)  * N * N);
+	cudaMalloc(reinterpret_cast<void**>(&d_c_out_cublas), sizeof(float)  * N * N);
 
     //**************************These lines are for debugging purpose only************************
 
@@ -181,9 +187,6 @@ int main(int argc, char **argv) {
 
 	// initialize host array with random data
 
-   // initialize_matrix(a, N, N);
-   // initialize_matrix(b, N, N);
-
     print_matrix(a, N, N, "input Matrix a");  
     print_matrix(b, N, N, "input Matrix b");
 
@@ -191,7 +194,7 @@ int main(int argc, char **argv) {
 	// copy m and v_in into device memory, time it as well
 	auto d2h_start = std::chrono::high_resolution_clock::now();
 	cudaMemcpy(d_a, a, sizeof(float) * N * N, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_b, b, sizeof(float) N * N, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_b, b, sizeof(float) * N * N, cudaMemcpyHostToDevice);
 	auto d2h_end = std::chrono::high_resolution_clock::now();
 	auto d2h_duration = std::chrono::duration_cast<std::chrono::microseconds>(d2h_end - d2h_start).count();
 
@@ -207,7 +210,6 @@ int main(int argc, char **argv) {
     //dim3 grid ( 1 , 1 );  
     //dim3 block(BLOCK_SIZE,BLOCK_SIZE);
     
-
 	std::cout << "STARTING NAIVE" << std::endl;
 	auto naive_exec_start = std::chrono::high_resolution_clock::now();
     multiplication<<<grid, block>>>( d_a, d_b, d_c_out_naive, N);
@@ -221,41 +223,45 @@ int main(int argc, char **argv) {
 		count();
 	
 
-    //print_vector(d_v_out_naive, M, "out vector");
-
 
 	// // copy d_v_out_naive back into host
-	// auto h2d_start = std::chrono::high_resolution_clock::now();
-	// cudaMemcpy(v_out_naive, d_v_out_naive, sizeof(float) * M, cudaMemcpyDeviceToHost);
-	// auto h2d_end = std::chrono::high_resolution_clock::now();
-	// auto h2d_duration = std::chrono::duration_cast<std::chrono::microseconds>(h2d_end - h2d_start).count();
+	auto h2d_start = std::chrono::high_resolution_clock::now();
+	cudaMemcpy(c_out_naive, d_c_out_naive, sizeof(float) * N * N, cudaMemcpyDeviceToHost);
+	auto h2d_end = std::chrono::high_resolution_clock::now();
+	auto h2d_duration = std::chrono::duration_cast<std::chrono::microseconds>(h2d_end - h2d_start).count();
 
 	// // get total inclusive time 
-	// auto gpu_transfer_total_duration = h2d_duration + d2h_duration;
+	 auto gpu_transfer_total_duration = h2d_duration + d2h_duration;
 	
-	// // try timing cublas (not timing inclusive times, although I am copying back out to host as well)
-	// cublasCreate(&cublas_handle);
-	// // cublasSetMatrix(M, N, sizeof(float), m, M, )
-
-	// const float a{1.0f};
-	// const float b{0.0f};
-	// auto cublas_exec_start = std::chrono::high_resolution_clock::now();
-	// cublasSgemv(cublas_handle, CUBLAS_OP_T, N, M, &a, d_m, N, d_v_in, 1, &b, d_v_out_cublas, 1);
+    // try timing cublas (not timing inclusive times, although I am copying back out to host as well)
+	 cublasCreate(&cublas_handle);
+	// cublasSetMatrix(M, N, sizeof(float), m, M, )
 
 
-	// auto cublas_exec_end = std::chrono::high_resolution_clock::now();
-	// auto cublas_exec_duration = std::chrono::duration_cast<std::chrono::microseconds>(
-	// 	cublas_exec_end - cublas_exec_start).count();
+    const float alf = 1;
+    const float bet = 0;
+    const float *alpha = &alf;
+    const float *beta = &bet;
+    int lda=N,ldb=N,ldc=N;
 
-	// // copy the cublas device vector back out to host
-	// cudaMemcpy(v_out_cublas, d_v_out_cublas, sizeof(float) * M, cudaMemcpyDeviceToHost);
+    auto cublas_exec_start = std::chrono::high_resolution_clock::now();
+    
+    cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N, alpha, a, lda, b, ldb, beta, c_out_cublas, ldc);
 
-	// std::cout << "Comparing output vectors:\n";
-	// float rse{ 0.0f };
-	// for (size_t i{ 0 }; i < M; i++) rse += abs(v_out_naive[i] - v_out_cublas[i]);
-	// std::cout << "ERROR: " << rse << std::endl;
+	auto cublas_exec_end = std::chrono::high_resolution_clock::now();
+	auto cublas_exec_duration = std::chrono::duration_cast<std::chrono::microseconds>(
+		cublas_exec_end - cublas_exec_start).count();
 
-///////
+	// copy the cublas device vector back out to host
+	cudaMemcpy(c_out_cublas, d_c_out_cublas, sizeof(float) * N, cudaMemcpyDeviceToHost);
+
+	std::cout << "Comparing output vectors:\n";
+	float rse{ 0.0f };
+	for (size_t i{ 0 }; i < N; i++) 
+        rse += abs(c_out_naive[i] - c_out_cublas[i]);
+	std::cout << "ERROR: " << rse << std::endl;
+
+/////// 
 
 //print_vector(d_v_out_cublas, M, "out vector");
 
@@ -268,28 +274,28 @@ int main(int argc, char **argv) {
 	// for (size_t i{0}; i < M; i++) std::cout << v_out_cublas[i] << ' ';
 	// std::cout << '\n';
 
+    print_matrix(c_out_naive, N, N, "output naive Matrix c"); 
+    print_matrix(c_out_cublas, N, N, "output cublas Matrix c"); 
 
+	std::cout <<
+		"Total Inclusive Time, Naive Execution Time, cuBLAS Execution Time, Naive Total Time, cuBLAS Total Time\n";
+	std::cout << gpu_transfer_total_duration << ", " << naive_exec_duration << ", " << cublas_exec_duration << ", " <<
+		naive_exec_duration +
+		gpu_transfer_total_duration << ", " << cublas_exec_duration + gpu_transfer_total_duration << '\n';
 
-
-	// std::cout <<
-	// 	"Total Inclusive Time, Naive Execution Time, cuBLAS Execution Time, Naive Total Time, cuBLAS Total Time\n";
-	// std::cout << gpu_transfer_total_duration << ", " << naive_exec_duration << ", " << cublas_exec_duration << ", " <<
-	// 	naive_exec_duration +
-	// 	gpu_transfer_total_duration << ", " << cublas_exec_duration + gpu_transfer_total_duration << '\n';
-
-	// clean up
-	//cublasDestroy(cublas_handle);
+	//clean up
+	cublasDestroy(cublas_handle);
 
 	cudaFree(d_c_out_cublas);
 	cudaFree(d_c_out_naive);
-	cudaFree(d_c);
 	cudaFree(d_b);
     cudaFree(d_a);
 
-	delete[] v_out_cublas;
-	delete[] v_out_naive;
-	delete[] v_in;
-	delete[] m;
+	delete[] c_out_cublas;
+	delete[] c_out_naive;
+	delete[] a;
+	delete[] b;
+
 
 	return 0;
 }
