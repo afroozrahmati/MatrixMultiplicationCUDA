@@ -7,6 +7,7 @@
  * special thanks to Tony Varela, I worked with him on previous lab for 
  * vector-matrix multiplication, so I used some of our previous implementations 
  * our previous work is here (private): https://github.com/valenotary/CSS-535-Lab-03-GEMV
+ *
  */
 
 
@@ -52,7 +53,7 @@ __global__ void multiplication(float *a, float *b, float *c, const int n){
     
     int row = blockIdx.y * blockDim.y + threadIdx.y; 
     int col = blockIdx.x * blockDim.x + threadIdx.x;
-    int sum = 0;
+    float sum = 0.0f;
     if( col < n && row < n) 
     {
         for(int i = 0; i < n; i++) 
@@ -89,27 +90,17 @@ int main(int argc, char **argv) {
 	// TODO: create command line arguments to configure grid/block dimensions
 	// This program should only take in the M and N dimensions; within the program, we figure out the execution configurations ourselves
 	
-    cout << argc<<endl;
-    cout <<argv[0]<<endl;
-    cout <<argv[1]<<endl;
-    cout <<argv[2]<<endl;
-    cout <<argv[3]<<endl;
 
-    if (argc != 4) {
-		std::cout << "Input: Matrix_size GridDim.x BlockDim.x. Exiting...\n";
-		return -1;
-	}
-
-	const size_t N{std::stoul(std::string{argv[1]})};
+	const size_t N = 4 ;
 	// let's create the grid / block configuration, but just really simply.
-	dim3 grid{std::stoul(std::string{argv[2]})}; // (1, 1, 1)
-	dim3 block{std::stoul(std::string{argv[3]})};
+	dim3 grid = 4; // (1, 1, 1)
+	dim3 block = 36;
 
 	// cublas declarations
 	cublasHandle_t cublas_handle;
 
 	// for now, let's put the matrix/vector dimensions in here as well
-	//const size_t N{ 10000 };
+	//
 	// yes, I know they're always going to be square, but I like separating M and N for my own understanding.
 	// TODO: consider experimenting with thrust device/host vectors as well
 
@@ -125,7 +116,7 @@ int main(int argc, char **argv) {
 	float *d_a, *d_b, *d_c_out_naive, *d_c_out_cublas;
 	cudaMalloc(reinterpret_cast<void**>(&d_a), sizeof(float) * N * N);
 	cudaMalloc(reinterpret_cast<void**>(&d_b), sizeof(float)  * N * N);
-	cudaMalloc(reinterpret_cast<void**>(&d_c_out_naive), sizeof(float)  * N * N);
+	cudaMalloc(reinterpret_cast<void**>(&d_c_out_naive), sizeof(float) * N * N);
 	cudaMalloc(reinterpret_cast<void**>(&d_c_out_cublas), sizeof(float)  * N * N);
 
     //**************************These lines are for debugging purpose only************************
@@ -174,14 +165,6 @@ int main(int argc, char **argv) {
     b[N * 3 + 2] = 7;
     b[N * 3 + 3] = 3;
   
-
-
-
-//    /* The elements of x and y */
-//    v_in[0] = 1;
-//    v_in[1] = 3;
-//    v_in[2] = 1;
-//    v_in[3] = 2;
 
 ///////////////////////**************************************************
 
@@ -246,14 +229,14 @@ int main(int argc, char **argv) {
 
     auto cublas_exec_start = std::chrono::high_resolution_clock::now();
     
-    cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N, alpha, a, lda, b, ldb, beta, c_out_cublas, ldc);
+    cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N, alpha, d_a, lda, d_b, ldb, beta, d_c_out_cublas, ldc);
 
 	auto cublas_exec_end = std::chrono::high_resolution_clock::now();
 	auto cublas_exec_duration = std::chrono::duration_cast<std::chrono::microseconds>(
 		cublas_exec_end - cublas_exec_start).count();
 
 	// copy the cublas device vector back out to host
-	cudaMemcpy(c_out_cublas, d_c_out_cublas, sizeof(float) * N, cudaMemcpyDeviceToHost);
+	cudaMemcpy(c_out_cublas, d_c_out_cublas, sizeof(float) *N* N, cudaMemcpyDeviceToHost);
 
 	std::cout << "Comparing output vectors:\n";
 	float rse{ 0.0f };
@@ -267,7 +250,8 @@ int main(int argc, char **argv) {
 
 
 	// std::cout << "Naive: ";
-	// for (size_t i{ 0 }; i < M; i++) std::cout << v_out_naive[i] << ' ';
+	// for (size_t i = 0 ; i < N; i++) 
+    //     std::cout << c_out_naive[i] << ' ';
 	// std::cout << '\n';
 	
 	// std::cout << "cuBLAS: ";
