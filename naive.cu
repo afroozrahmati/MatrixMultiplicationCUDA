@@ -53,14 +53,35 @@ __global__ void multiplication(float *a, float *b, float *c, const int n){
     
     int row = blockIdx.y * blockDim.y + threadIdx.y; 
     int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+
     float sum = 0.0f;
     if( col < n && row < n) 
     {
         for(int i = 0; i < n; i++) 
             sum += a[row * n + i] * b[i * n + col];
-
-        c[row * n + col] = sum;
     }
+	c[row * n + col] = sum;
+}
+
+
+
+//functionality: Computing the residual between two matrices 
+//pre condition : M as matrices size ,resultVector2 and resultVector are two matrixes stores in 1D dimensions
+//post condition: return the residual value as double precision
+float residual(int M, float* resultVector2, float* resultVector) {
+
+	float* k = new float[M];
+	float accum = 0.0;
+	for (int i = 0; i < M; ++i) {
+		k[i] = pow(fabs(resultVector2[i] - resultVector[i]), 2);
+		accum += k[i];
+	}
+	float norm = sqrt(accum);
+
+	return norm;
+	//std::cout << "Residual : " << norm<<endl;
+
 }
 
 
@@ -104,20 +125,23 @@ int main(int argc, char **argv) {
 	// yes, I know they're always going to be square, but I like separating M and N for my own understanding.
 	// TODO: consider experimenting with thrust device/host vectors as well
 
-
-
 	// allocate host memory
-	float *a =new float[N * N];
-	float *b = new float[N * N];
-	float *c_out_naive= new float[N * N];
-	float *c_out_cublas= new float[N * N];
+	float *a =  (float*)malloc( N * N * sizeof(float) );
+	float *b = (float*)malloc( N * N * sizeof(float) );
+	float *c_out_naive= (float*)malloc( N * N * sizeof(float) );
+	float *c_out_cublas= (float*)malloc( N * N * sizeof(float) );
 
 	// allocate device memory
 	float *d_a, *d_b, *d_c_out_naive, *d_c_out_cublas;
-	cudaMalloc(reinterpret_cast<void**>(&d_a), sizeof(float) * N * N);
-	cudaMalloc(reinterpret_cast<void**>(&d_b), sizeof(float)  * N * N);
-	cudaMalloc(reinterpret_cast<void**>(&d_c_out_naive), sizeof(float) * N * N);
-	cudaMalloc(reinterpret_cast<void**>(&d_c_out_cublas), sizeof(float)  * N * N);
+	cudaMalloc((void**)&d_a, N * N * sizeof(float));
+	cudaMalloc((void**)&d_b, N * N * sizeof(float));
+	cudaMalloc((void**)&d_c_out_naive, N * N * sizeof(float));
+	cudaMalloc((void**)&d_c_out_cublas, N * N * sizeof(float));
+
+	// cudaMalloc(reinterpret_cast<void**>(&d_a), sizeof(float) * N * N);
+	// cudaMalloc(reinterpret_cast<void**>(&d_b), sizeof(float)  * N * N);
+	// cudaMalloc(reinterpret_cast<void**>(&d_c_out_naive), sizeof(float) * N * N);
+	// cudaMalloc(reinterpret_cast<void**>(&d_c_out_cublas), sizeof(float)  * N * N);
 
     //**************************These lines are for debugging purpose only************************
 
@@ -193,17 +217,20 @@ int main(int argc, char **argv) {
     //dim3 grid ( 1 , 1 );  
     //dim3 block(BLOCK_SIZE,BLOCK_SIZE);
     
+	dim3 threadPerBlock(32, 32);
+    dim3 blockPerGrid(4, 1);
+
+
 	std::cout << "STARTING NAIVE" << std::endl;
 	auto naive_exec_start = std::chrono::high_resolution_clock::now();
-    multiplication<<<grid, block>>>( d_a, d_b, d_c_out_naive, N);
+    multiplication<<<blockPerGrid, threadPerBlock>>>( d_a, d_b, d_c_out_naive, N);
    
     //naive_gemv <<<grid, block >>>(d_m, d_v_in, d_v_out_naive, M, N);
 	cudaDeviceSynchronize();
 	std::cout << "FINISHED NAIVE" << std::endl;
 	// since the kernels are executed asynchronously, need to sync so that we can get accurate timing
 	auto naive_exec_end = std::chrono::high_resolution_clock::now();
-	auto naive_exec_duration = std::chrono::duration_cast<std::chrono::microseconds>(naive_exec_end - naive_exec_start).
-		count();
+	auto naive_exec_duration = std::chrono::duration_cast<std::chrono::microseconds>(naive_exec_end - naive_exec_start).count();
 	
 
 
@@ -232,16 +259,19 @@ int main(int argc, char **argv) {
     cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N, alpha, d_a, lda, d_b, ldb, beta, d_c_out_cublas, ldc);
 
 	auto cublas_exec_end = std::chrono::high_resolution_clock::now();
-	auto cublas_exec_duration = std::chrono::duration_cast<std::chrono::microseconds>(
-		cublas_exec_end - cublas_exec_start).count();
+	auto cublas_exec_duration = std::chrono::duration_cast<std::chrono::microseconds>(cublas_exec_end - cublas_exec_start).count();
 
 	// copy the cublas device vector back out to host
 	cudaMemcpy(c_out_cublas, d_c_out_cublas, sizeof(float) *N* N, cudaMemcpyDeviceToHost);
 
 	std::cout << "Comparing output vectors:\n";
+
 	float rse{ 0.0f };
-	for (size_t i{ 0 }; i < N; i++) 
-        rse += abs(c_out_naive[i] - c_out_cublas[i]);
+	rse = residual(N*N,c_out_naive,c_out_cublas) ;
+
+	
+	// for (size_t i{ 0 }; i < N; i++) 
+    //     rse += abs(c_out_naive[i] - c_out_cublas[i]);
 	std::cout << "ERROR: " << rse << std::endl;
 
 /////// 
