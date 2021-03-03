@@ -217,8 +217,9 @@ int main(int argc, char **argv) {
     //dim3 grid ( 1 , 1 );  
     //dim3 block(BLOCK_SIZE,BLOCK_SIZE);
     
-	dim3 threadPerBlock(32, 32);
-    dim3 blockPerGrid(4, 1);
+    dim3 blockPerGrid(1,1,1);      
+	dim3 threadPerBlock(N,N,1);    
+   
 
 
 	std::cout << "STARTING NAIVE" << std::endl;
