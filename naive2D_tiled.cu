@@ -23,6 +23,8 @@
  using namespace std::chrono;
  
  
+#define TILE_WIDTH 27
+
  /*
  * Functionality: Initializing Matrix with float values other than 0 and 1
  * input:
@@ -45,7 +47,7 @@
  }
  
  /* 
- functionality: naive Matrix Multiplication Implementation a*b=c
+ functionality: naive2D + tiled Matrix Multiplication Implementation a*b=c
  input parameters: 
 			 a         : the input matrix
 			 b         : the input matrix
@@ -55,17 +57,15 @@
  
  __global__ void multiplication(float *a, float *b, float *c, const int n){
 	 
-	int col = blockIdx.x * blockDim.x + threadIdx.x; //location in c
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
-	 
-    float sum = 0.0f;
+    unsigned int col = TILE_WIDTH * blockIdx.x + threadIdx.x ;
+    unsigned int row = TILE_WIDTH * blockIdx.y + threadIdx.y ;
+    
     if( col < n && row < n) 
     {
-        for(int i = 0; i < n; i++) 
+        for (int k = 0 ; k < n ; k++ )
         {
-            sum += a[row * n + i] * b[i * n + col];
+            c[row * n + col]+= a[row * n + k ] * b[ k * n + col] ;
         }
-        c[row * n + col] = sum;
     }
  
  }
@@ -135,16 +135,16 @@
  int main(int argc, char **argv) {
  
 	 // This program should only take in the M and N dimensions; within the program, we figure out the execution configurations ourselves		
-	 if( argc != 4 )
+	 if( argc != 2 )
 	 {      
-		 std::cout << "please enter matrix size , number of blocks ,number of threads per block" << std::endl;
+		 std::cout << "please enter matrix size " << std::endl;
 		 return 0; 
 	 }
 	 
 	 const size_t N = atoi(argv[1]) ;
 	 // let's create the grid / block configuration, but just really simply.
-	 dim3 blockPerGrid (atoi(argv[2]) , atoi(argv[2]) );      
-	 dim3 threadPerBlock (atoi(argv[3]) ,  atoi(argv[3]) );
+	 dim3 blockPerGrid (ceil(N/(float)TILE_WIDTH), ceil(N/(float)TILE_WIDTH) );      
+	 dim3 threadPerBlock (TILE_WIDTH, TILE_WIDTH );
  
 
 	 // cublas declarations

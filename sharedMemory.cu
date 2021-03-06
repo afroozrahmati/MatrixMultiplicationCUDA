@@ -20,8 +20,8 @@
  using namespace std;
  using namespace std::chrono;
  
- #define BLOCK_SIZE 16
- #define TILE_WIDTH 16
+ #define BLOCK_SIZE 2
+ #define TILE_WIDTH 2
 
  /*
  * Functionality: Initializing Matrix with float values other than 0 and 1
